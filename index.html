@@ -1,0 +1,501 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Garages vélo">
+<meta name="theme-color" content="#0f766e">
+<title>Garages à vélo</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+  :root{
+    --brand:#0f766e; --brand-d:#115e59; --bg:#ffffff; --fg:#14201f; --muted:#5b6b69;
+    --line:#dfe7e5; --danger:#b91c1c; --shadow:0 6px 24px rgba(0,0,0,.18);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;color:var(--fg);overscroll-behavior:none}
+  #map{position:fixed;inset:0}
+  .top{position:fixed;top:calc(env(safe-area-inset-top) + 10px);left:12px;right:12px;z-index:1000;display:flex;gap:8px;align-items:center;pointer-events:none}
+  .pill{pointer-events:auto;background:var(--bg);border-radius:999px;box-shadow:var(--shadow);padding:10px 16px;font-weight:600;font-size:15px;border:0;color:var(--fg);font-family:inherit}
+  .pill small{font-weight:500;color:var(--muted)}
+  .pill.btn-pill{max-width:46vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .spacer{flex:1}
+  .badge{display:inline-block;min-width:20px;padding:1px 6px;border-radius:999px;background:var(--danger);color:#fff;font-size:12px;margin-left:4px;text-align:center}
+  .banner{position:fixed;left:12px;right:12px;top:calc(env(safe-area-inset-top) + 62px);z-index:1000;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;border-radius:12px;padding:10px 12px;font-size:13px;line-height:1.35;display:none}
+  .banner.show{display:block}
+  .banner.add{background:#ecfdf5;border-color:#a7f3d0;color:#065f46}
+  .fabs{position:fixed;right:14px;bottom:calc(env(safe-area-inset-bottom) + 18px);z-index:1000;display:flex;flex-direction:column;gap:12px;align-items:flex-end}
+  .fab{border:0;border-radius:999px;box-shadow:var(--shadow);background:var(--bg);color:var(--fg);font:600 15px inherit;font-family:inherit;display:flex;align-items:center;gap:8px;height:52px;padding:0 18px}
+  .fab.round{width:52px;padding:0;justify-content:center;font-size:22px}
+  .fab.primary{background:var(--brand);color:#fff}
+  .fab.primary.on{background:var(--danger)}
+  .fab:active{transform:scale(.97)}
+  .sheet{position:fixed;left:0;right:0;bottom:0;z-index:1100;background:var(--bg);border-radius:20px 20px 0 0;box-shadow:0 -8px 30px rgba(0,0,0,.25);padding:16px 16px calc(env(safe-area-inset-bottom) + 16px);transform:translateY(105%);transition:transform .25s ease;max-height:85%;overflow:auto}
+  .sheet.open{transform:none}
+  .sheet h2{margin:0 0 12px;font-size:18px}
+  .sheet h3{margin:18px 0 8px;font-size:15px}
+  label{display:block;font-size:13px;font-weight:600;color:var(--muted);margin:12px 0 6px}
+  .chips{display:flex;gap:8px;flex-wrap:wrap}
+  .chip{border:1.5px solid var(--line);background:#fff;border-radius:12px;padding:10px 12px;font:500 14px inherit;font-family:inherit;color:var(--fg)}
+  .chip.sel{border-color:var(--brand);background:#f0fdfa;color:var(--brand-d);font-weight:700}
+  input[type=number],input[type=email],input[type=password],textarea{width:100%;border:1.5px solid var(--line);border-radius:12px;padding:11px 12px;font:16px inherit;font-family:inherit}
+  textarea{resize:none;height:64px}
+  .row{display:flex;gap:10px;margin-top:16px}
+  .btn{flex:1;border:0;border-radius:12px;height:48px;font:700 16px inherit;font-family:inherit}
+  .btn.ghost{background:#eef3f2;color:var(--fg)}
+  .btn.ok{background:var(--brand);color:#fff}
+  .btn.danger{background:var(--danger);color:#fff}
+  .btn.small{height:38px;font-size:14px;flex:0 0 auto;padding:0 12px}
+  .btn:disabled{opacity:.5}
+  .link{background:none;border:0;color:var(--brand-d);font:600 14px inherit;font-family:inherit;padding:10px 0;text-decoration:underline}
+  .coords,.hint{font-size:12px;color:var(--muted);line-height:1.4}
+  .err{color:var(--danger);font-size:13px;min-height:18px;margin-top:8px}
+  .item{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px}
+  .item .t{font-weight:700;font-size:14px}
+  .item .m{font-size:12px;color:var(--muted);margin:2px 0 8px}
+  .item .acts{display:flex;gap:8px;flex-wrap:wrap}
+  .empty{color:var(--muted);font-size:14px;padding:6px 0}
+  .pin{width:34px;height:34px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35)}
+  .pin span{transform:rotate(45deg);font-size:16px;line-height:1}
+  .me{width:18px;height:18px;border-radius:50%;background:#2563eb;border:3px solid #fff;box-shadow:0 0 0 6px rgba(37,99,235,.25)}
+  .leaflet-popup-content{margin:12px 14px;font-family:-apple-system,system-ui,sans-serif;font-size:14px;line-height:1.4}
+  .pop h3{margin:0 0 4px;font-size:15px}
+  .pop .meta{color:var(--muted);font-size:12px;margin-top:6px}
+  .pop .acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  .pop button{border:0;background:var(--brand);color:#fff;border-radius:10px;padding:8px 12px;font:600 13px inherit;font-family:inherit}
+  .pop button.sec{background:#eef3f2;color:var(--fg)}
+  .pop button.dng{background:var(--danger)}
+  .toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 90px);transform:translateX(-50%);background:#111;color:#fff;border-radius:999px;padding:10px 16px;font-size:14px;z-index:1200;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90%;text-align:center}
+  .toast.show{opacity:.92}
+</style>
+</head>
+<body>
+<div id="map"></div>
+
+<div class="top">
+  <div class="pill">🚲 Garages vélo <small id="count"></small></div>
+  <div class="spacer"></div>
+  <button class="pill btn-pill" id="adminBtn" style="display:none">🛡️ Modération<span class="badge" id="adminBadge" style="display:none">0</span></button>
+  <button class="pill btn-pill" id="accountBtn" style="display:none">👤 Connexion</button>
+</div>
+<div id="banner" class="banner"></div>
+
+<div class="fabs">
+  <button class="fab round" id="locate" aria-label="Me localiser">📍</button>
+  <button class="fab primary" id="addBtn"><span id="addIcon">＋</span><span id="addLabel">Ajouter</span></button>
+</div>
+
+<!-- Ajout -->
+<div class="sheet" id="sheetAdd" role="dialog" aria-modal="true">
+  <h2>Nouveau garage à vélo</h2>
+  <div class="coords" id="coords"></div>
+  <label>Type</label>
+  <div class="chips" id="types"></div>
+  <label for="places">Nombre de places (approx.)</label>
+  <input type="number" id="places" inputmode="numeric" min="1" max="500" value="6">
+  <label for="note">Remarque (facultatif)</label>
+  <textarea id="note" maxlength="200" placeholder="Ex. : devant la mairie, cadenas obligatoire"></textarea>
+  <div class="hint" id="addHint"></div>
+  <div class="row">
+    <button class="btn ghost" id="cancel">Annuler</button>
+    <button class="btn ok" id="save">Enregistrer</button>
+  </div>
+</div>
+
+<!-- Compte -->
+<div class="sheet" id="sheetAuth" role="dialog" aria-modal="true">
+  <h2 id="authTitle">Connexion</h2>
+  <div id="authForm">
+    <label for="email">E-mail</label>
+    <input type="email" id="email" autocomplete="email" inputmode="email" autocapitalize="off">
+    <label for="pwd">Mot de passe (6 caractères minimum)</label>
+    <input type="password" id="pwd" autocomplete="current-password">
+    <div class="err" id="authErr"></div>
+    <div class="row">
+      <button class="btn ghost" id="signUp">Créer un compte</button>
+      <button class="btn ok" id="signIn">Se connecter</button>
+    </div>
+    <button class="link" id="resetPwd">Mot de passe oublié ?</button>
+  </div>
+  <div id="authInfo" style="display:none">
+    <div id="whoami" class="item"></div>
+    <div class="row">
+      <button class="btn ghost" id="closeAuth">Fermer</button>
+      <button class="btn danger" id="signOut">Se déconnecter</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modération -->
+<div class="sheet" id="sheetMod" role="dialog" aria-modal="true">
+  <h2>🛡️ Modération</h2>
+  <h3>En attente de validation</h3>
+  <div id="pendingList"></div>
+  <h3>Signalés par les utilisateurs</h3>
+  <div id="reportList"></div>
+  <div class="row"><button class="btn ghost" id="closeMod">Fermer</button></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+/* ============ CONFIGURATION (voir LISEZMOI.md) ============
+   Laissez vides pour le mode démo (données locales, sans compte). */
+const FIREBASE_DB_URL = "https://citybikepark-65700-default-rtdb.firebaseio.com";
+const FIREBASE_API_KEY = "AIzaSyBXAT-wefAO4jsx3hNqvZIIglpajJKZLVY";
+const REFRESH_MS = 20000;
+/* ========================================================== */
+
+const TYPES = {
+  arceau:  { label: "Arceaux",         icon: "🅿️", color: "#0f766e" },
+  abri:    { label: "Abri couvert",    icon: "☂️", color: "#2563eb" },
+  securise:{ label: "Box sécurisé",    icon: "🔒", color: "#7c3aed" },
+  autre:   { label: "Autre",           icon: "🚲", color: "#b45309" }
+};
+const $ = id => document.getElementById(id);
+const shared = !!(FIREBASE_DB_URL && FIREBASE_API_KEY);
+const base = FIREBASE_DB_URL.replace(/\/+$/, "");
+const LS_KEY = "garages-velo-local", LS_AUTH = "garages-velo-auth";
+
+let garages = {}, markers = {}, myConfirmed = new Set();
+let pending = {}, reportCounts = {};
+let addMode = false, tempMarker = null, tempLatLng = null, selType = "arceau", viewMarker = null;
+let session = null, isAdmin = false;
+
+/* ---------- Carte ---------- */
+const map = L.map("map", { zoomControl: false }).setView([45.5233, 4.8736], 14);
+L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(map);
+map.attributionControl.setPrefix(false);
+
+/* ---------- Géolocalisation ---------- */
+let meMarker = null, accCircle = null, firstFix = true;
+function onPos(p) {
+  const ll = [p.coords.latitude, p.coords.longitude];
+  if (!meMarker) {
+    meMarker = L.marker(ll, { icon: L.divIcon({ className: "", html: '<div class="me"></div>', iconSize: [18, 18], iconAnchor: [9, 9] }), interactive: false, zIndexOffset: 1000 }).addTo(map);
+    accCircle = L.circle(ll, { radius: p.coords.accuracy, weight: 0, fillColor: "#2563eb", fillOpacity: .1, interactive: false }).addTo(map);
+  } else { meMarker.setLatLng(ll); accCircle.setLatLng(ll).setRadius(p.coords.accuracy); }
+  if (firstFix) { map.setView(ll, 17); firstFix = false; }
+}
+function onPosErr(e) { toast(e.code === 1 ? "Localisation refusée : activez-la dans Réglages › Safari" : "Position indisponible"); }
+function startGeo() {
+  if (!navigator.geolocation) return toast("Géolocalisation non supportée");
+  navigator.geolocation.watchPosition(onPos, onPosErr, { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 });
+}
+$("locate").onclick = () => {
+  if (meMarker) map.setView(meMarker.getLatLng(), Math.max(map.getZoom(), 17));
+  else { firstFix = true; startGeo(); }
+};
+
+/* ---------- Authentification (Firebase Auth, API REST) ---------- */
+const AUTH_ERR = {
+  EMAIL_EXISTS: "Cet e-mail a déjà un compte.", INVALID_EMAIL: "Adresse e-mail invalide.",
+  WEAK_PASSWORD: "Mot de passe trop faible (6 caractères minimum).", MISSING_PASSWORD: "Saisissez un mot de passe.",
+  INVALID_LOGIN_CREDENTIALS: "E-mail ou mot de passe incorrect.", EMAIL_NOT_FOUND: "Aucun compte avec cet e-mail.",
+  INVALID_PASSWORD: "E-mail ou mot de passe incorrect.", USER_DISABLED: "Compte désactivé.",
+  TOO_MANY_ATTEMPTS_TRY_LATER: "Trop de tentatives, réessayez plus tard.", OPERATION_NOT_ALLOWED: "Connexion par e-mail non activée dans Firebase."
+};
+async function authCall(endpoint, body) {
+  const r = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:${endpoint}?key=${FIREBASE_API_KEY}`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const j = await r.json();
+  if (!r.ok) { const code = (j.error && j.error.message || "").split(" ")[0]; throw new Error(AUTH_ERR[code] || "Erreur d'authentification"); }
+  return j;
+}
+function setSession(j) {
+  session = { email: j.email || (session && session.email), uid: j.localId || j.user_id, idToken: j.idToken || j.id_token,
+              refreshToken: j.refreshToken || j.refresh_token, exp: Date.now() + (+(j.expiresIn || j.expires_in)) * 1000 - 60000 };
+  try { localStorage.setItem(LS_AUTH, JSON.stringify(session)); } catch {}
+}
+async function getToken() {
+  if (!session) return null;
+  if (Date.now() < session.exp) return session.idToken;
+  try {
+    const r = await fetch(`https://securetoken.googleapis.com/v1/token?key=${FIREBASE_API_KEY}`, {
+      method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: "grant_type=refresh_token&refresh_token=" + encodeURIComponent(session.refreshToken) });
+    if (!r.ok) throw 0;
+    setSession(await r.json());
+    return session.idToken;
+  } catch { doSignOut(); return null; }
+}
+function doSignOut() {
+  session = null; isAdmin = false; pending = {}; reportCounts = {}; myConfirmed = new Set();
+  try { localStorage.removeItem(LS_AUTH); } catch {}
+  updateAccountUI(); refresh();
+}
+async function checkAdmin() {
+  isAdmin = false;
+  if (!session) return;
+  try { isAdmin = (await db("GET", "admins/" + session.uid)) === true; } catch {}
+}
+function updateAccountUI() {
+  if (!shared) return;
+  $("accountBtn").style.display = "";
+  $("accountBtn").textContent = session ? "👤 " + session.email.split("@")[0] : "👤 Connexion";
+  $("adminBtn").style.display = isAdmin ? "" : "none";
+}
+
+/* ---------- Accès base de données ---------- */
+async function db(method, path, body) {
+  const t = await getToken();
+  const r = await fetch(`${base}/${path}.json` + (t ? `?auth=${t}` : ""), { method, body: body === undefined ? undefined : JSON.stringify(body) });
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  return r.json();
+}
+async function loadAll() {
+  if (!shared) return { g: JSON.parse(localStorage.getItem(LS_KEY) || "{}"), c: {} };
+  const [g, c] = await Promise.all([db("GET", "garages"), db("GET", "confirmations")]);
+  return { g: g || {}, c: c || {} };
+}
+async function refresh() {
+  try {
+    const { g, c } = await loadAll();
+    myConfirmed = new Set();
+    for (const id of Object.keys(g)) {
+      const users = c[id] ? Object.keys(c[id]) : [];
+      if (!shared) g[id].confirmations = g[id].confirmations || 0; else g[id].confirmations = users.length;
+      if (session && users.includes(session.uid)) myConfirmed.add(id);
+    }
+    garages = g; render(); setBanner();
+    if (isAdmin) await refreshMod();
+  } catch { setBanner("Hors connexion : impossible de synchroniser les garages."); }
+}
+
+/* ---------- Marqueurs ---------- */
+function iconFor(type) {
+  const t = TYPES[type] || TYPES.autre;
+  return L.divIcon({ className: "", iconSize: [34, 34], iconAnchor: [17, 34], popupAnchor: [0, -32],
+    html: `<div class="pin" style="background:${t.color}"><span>${t.icon}</span></div>` });
+}
+function mk(tag, text, cls, onclick) {
+  const e = document.createElement(tag); if (text) e.textContent = text; if (cls) e.className = cls; if (onclick) e.onclick = onclick; return e;
+}
+function needLogin() {
+  if (!shared || session) return false;
+  toast("Connectez-vous d'abord"); openSheet("sheetAuth"); return true;
+}
+function popupNode(id, g) {
+  const t = TYPES[g.type] || TYPES.autre;
+  const d = mk("div", "", "pop");
+  d.appendChild(mk("h3", `${t.icon} ${t.label}`));
+  d.appendChild(mk("div", `${Number(g.places) || "?"} place(s)`));
+  if (g.note) d.appendChild(mk("div", g.note));
+  d.appendChild(mk("div", `Ajouté le ${new Date(g.created).toLocaleDateString("fr-FR")} · ${g.confirmations || 0} confirmation(s)`, "meta"));
+  if (isAdmin && reportCounts[id]) d.appendChild(mk("div", `⚑ ${reportCounts[id]} signalement(s)`, "meta"));
+  const acts = mk("div", "", "acts");
+  acts.appendChild(mk("button", myConfirmed.has(id) ? "✔︎ Confirmé" : "✔︎ Toujours là", "", async () => {
+    if (needLogin()) return;
+    if (myConfirmed.has(id)) return toast("Déjà confirmé, merci !");
+    try {
+      if (shared) await db("PUT", `confirmations/${id}/${session.uid}`, true);
+      else { const all = JSON.parse(localStorage.getItem(LS_KEY) || "{}"); all[id].confirmations = (all[id].confirmations || 0) + 1; localStorage.setItem(LS_KEY, JSON.stringify(all)); }
+      garages[id].confirmations = (garages[id].confirmations || 0) + 1; myConfirmed.add(id);
+      toast("Merci !"); map.closePopup();
+    } catch { toast("Échec de l'envoi"); }
+  }));
+  if (shared) acts.appendChild(mk("button", "⚑ Signaler", "sec", async () => {
+    if (needLogin()) return;
+    if (!confirm("Signaler ce point comme erroné ou inexistant ?")) return;
+    try { await db("PUT", `reports/${id}/${session.uid}`, Date.now()); toast("Signalement envoyé"); map.closePopup(); }
+    catch { toast("Échec de l'envoi"); }
+  }));
+  if (isAdmin) acts.appendChild(mk("button", "🗑 Supprimer", "dng", () => deleteGarage(id)));
+  d.appendChild(acts);
+  return d;
+}
+function render() {
+  const ids = Object.keys(garages);
+  for (const id of Object.keys(markers)) if (!garages[id]) { map.removeLayer(markers[id]); delete markers[id]; }
+  for (const id of ids) {
+    const g = garages[id];
+    if (typeof g.lat !== "number" || typeof g.lng !== "number") continue;
+    if (!markers[id]) {
+      markers[id] = L.marker([g.lat, g.lng], { icon: iconFor(g.type) }).addTo(map);
+      markers[id].bindPopup(() => popupNode(id, garages[id]));
+    }
+  }
+  $("count").textContent = ids.length ? `· ${ids.length}` : "";
+}
+
+/* ---------- Feuilles (sheets) ---------- */
+const SHEETS = ["sheetAdd", "sheetAuth", "sheetMod"];
+function openSheet(id) { SHEETS.forEach(s => $(s).classList.toggle("open", s === id)); if (id === "sheetAuth") fillAuth(); }
+function closeSheets(removePin) {
+  SHEETS.forEach(s => $(s).classList.remove("open"));
+  if (removePin && tempMarker) { map.removeLayer(tempMarker); tempMarker = null; }
+  tempLatLng = null;
+}
+
+/* ---------- Ajout ---------- */
+function setAddMode(on) {
+  addMode = on;
+  $("addBtn").classList.toggle("on", on);
+  $("addIcon").textContent = on ? "✕" : "＋";
+  $("addLabel").textContent = on ? "Annuler" : "Ajouter";
+  setBanner();
+  if (!on) closeSheets(true);
+}
+function setBanner(err) {
+  const b = $("banner");
+  if (addMode) { b.className = "banner show add"; b.textContent = "Touchez la carte à l'emplacement du garage à vélo."; return; }
+  if (err) { b.className = "banner show"; b.textContent = err; return; }
+  if (!shared) { b.className = "banner show"; b.textContent = "Mode démo : points et comptes locaux à cet iPhone. Configurez Firebase (voir LISEZMOI.md)."; return; }
+  b.className = "banner";
+}
+$("addBtn").onclick = () => { if (!addMode && needLogin()) return; setAddMode(!addMode); };
+
+map.on("click", e => {
+  if (!addMode) return;
+  tempLatLng = e.latlng;
+  if (tempMarker) tempMarker.setLatLng(e.latlng);
+  else tempMarker = L.marker(e.latlng, { icon: iconFor(selType), opacity: .85 }).addTo(map);
+  $("coords").textContent = `Position : ${e.latlng.lat.toFixed(5)}, ${e.latlng.lng.toFixed(5)}`;
+  $("addHint").textContent = shared && !isAdmin ? "Votre ajout sera visible après validation par un modérateur." : "";
+  openSheet("sheetAdd");
+});
+function buildTypes() {
+  const box = $("types"); box.innerHTML = "";
+  for (const [k, t] of Object.entries(TYPES)) {
+    const b = mk("button", `${t.icon} ${t.label}`, "chip" + (k === selType ? " sel" : ""), () => { selType = k; buildTypes(); if (tempMarker) tempMarker.setIcon(iconFor(k)); });
+    box.appendChild(b);
+  }
+}
+$("cancel").onclick = () => closeSheets(true);
+$("save").onclick = async () => {
+  if (!tempLatLng) return;
+  const places = Math.max(1, Math.min(500, parseInt($("places").value, 10) || 1));
+  const g = { lat: +tempLatLng.lat.toFixed(6), lng: +tempLatLng.lng.toFixed(6), type: selType, places,
+              note: $("note").value.trim().slice(0, 200), created: Date.now() };
+  $("save").disabled = true;
+  try {
+    if (!shared) {
+      const all = JSON.parse(localStorage.getItem(LS_KEY) || "{}"); const id = "l" + Date.now();
+      g.confirmations = 0; all[id] = g; localStorage.setItem(LS_KEY, JSON.stringify(all)); garages[id] = g; render();
+      toast("Garage à vélo ajouté ✔︎");
+    } else {
+      g.uid = session.uid;
+      if (isAdmin) { const r = await db("POST", "garages", g); g.confirmations = 0; garages[r.name] = g; render(); toast("Garage ajouté ✔︎"); }
+      else { await db("POST", "pending", g); toast("Merci ! Ajout envoyé pour validation ✔︎"); }
+    }
+    $("note").value = ""; closeSheets(true); setAddMode(false);
+  } catch { toast("Échec de l'enregistrement, réessayez"); }
+  finally { $("save").disabled = false; }
+};
+
+/* ---------- Compte ---------- */
+function fillAuth() {
+  const on = !!session;
+  $("authForm").style.display = on ? "none" : "";
+  $("authInfo").style.display = on ? "" : "none";
+  $("authTitle").textContent = on ? "Mon compte" : "Connexion";
+  $("authErr").textContent = "";
+  if (on) { const w = $("whoami"); w.innerHTML = ""; w.appendChild(mk("div", session.email, "t")); w.appendChild(mk("div", isAdmin ? "Modérateur" : "Contributeur", "m")); }
+}
+$("accountBtn").onclick = () => openSheet("sheetAuth");
+$("closeAuth").onclick = () => closeSheets(false);
+async function doAuth(endpoint) {
+  const email = $("email").value.trim(), password = $("pwd").value;
+  $("authErr").textContent = ""; $("signIn").disabled = $("signUp").disabled = true;
+  try {
+    const j = await authCall(endpoint, { email, password, returnSecureToken: true });
+    setSession(j); await checkAdmin(); updateAccountUI(); closeSheets(false); $("pwd").value = "";
+    toast(endpoint === "signUp" ? "Compte créé ✔︎" : "Connecté ✔︎"); refresh();
+  } catch (e) { $("authErr").textContent = e.message; }
+  finally { $("signIn").disabled = $("signUp").disabled = false; }
+}
+$("signIn").onclick = () => doAuth("signInWithPassword");
+$("signUp").onclick = () => doAuth("signUp");
+$("signOut").onclick = () => { doSignOut(); closeSheets(false); toast("Déconnecté"); };
+$("resetPwd").onclick = async () => {
+  const email = $("email").value.trim();
+  if (!email) { $("authErr").textContent = "Saisissez votre e-mail ci-dessus."; return; }
+  try { await authCall("sendOobCode", { requestType: "PASSWORD_RESET", email }); toast("E-mail de réinitialisation envoyé"); }
+  catch (e) { $("authErr").textContent = e.message; }
+};
+
+/* ---------- Modération (administrateurs) ---------- */
+$("adminBtn").onclick = async () => { await refreshMod(); openSheet("sheetMod"); };
+$("closeMod").onclick = () => closeSheets(false);
+function showAt(g) {
+  closeSheets(false);
+  if (viewMarker) map.removeLayer(viewMarker);
+  viewMarker = L.marker([g.lat, g.lng], { icon: iconFor(g.type), zIndexOffset: 900 }).addTo(map);
+  map.flyTo([g.lat, g.lng], 18);
+  setTimeout(() => { if (viewMarker) { map.removeLayer(viewMarker); viewMarker = null; } }, 15000);
+}
+async function refreshMod() {
+  try {
+    pending = (await db("GET", "pending")) || {};
+    const rep = (await db("GET", "reports")) || {};
+    reportCounts = {}; for (const id of Object.keys(rep)) reportCounts[id] = Object.keys(rep[id]).length;
+  } catch { return; }
+  const n = Object.keys(pending).length;
+  $("adminBadge").style.display = n ? "" : "none"; $("adminBadge").textContent = n;
+  const pl = $("pendingList"); pl.innerHTML = "";
+  if (!n) pl.appendChild(mk("div", "Aucun ajout en attente.", "empty"));
+  for (const [id, g] of Object.entries(pending)) {
+    const t = TYPES[g.type] || TYPES.autre, it = mk("div", "", "item");
+    it.appendChild(mk("div", `${t.icon} ${t.label} · ${Number(g.places) || "?"} place(s)`, "t"));
+    it.appendChild(mk("div", `${g.note ? g.note + " · " : ""}${new Date(g.created).toLocaleString("fr-FR")}`, "m"));
+    const a = mk("div", "", "acts");
+    a.appendChild(mk("button", "Voir", "btn ghost small", () => showAt(g)));
+    a.appendChild(mk("button", "Approuver", "btn ok small", () => approve(id, g)));
+    a.appendChild(mk("button", "Refuser", "btn danger small", async () => { try { await db("DELETE", "pending/" + id); await refreshMod(); } catch { toast("Échec"); } }));
+    it.appendChild(a); pl.appendChild(it);
+  }
+  const rl = $("reportList"); rl.innerHTML = "";
+  const flagged = Object.keys(reportCounts).filter(id => garages[id]);
+  if (!flagged.length) rl.appendChild(mk("div", "Aucun signalement.", "empty"));
+  for (const id of flagged.sort((a, b) => reportCounts[b] - reportCounts[a])) {
+    const g = garages[id], t = TYPES[g.type] || TYPES.autre, it = mk("div", "", "item");
+    it.appendChild(mk("div", `${t.icon} ${t.label} · ⚑ ${reportCounts[id]} signalement(s)`, "t"));
+    it.appendChild(mk("div", g.note || "", "m"));
+    const a = mk("div", "", "acts");
+    a.appendChild(mk("button", "Voir", "btn ghost small", () => showAt(g)));
+    a.appendChild(mk("button", "Ignorer", "btn ghost small", async () => { try { await db("DELETE", "reports/" + id); await refreshMod(); } catch { toast("Échec"); } }));
+    a.appendChild(mk("button", "Supprimer", "btn danger small", () => deleteGarage(id)));
+    it.appendChild(a); rl.appendChild(it);
+  }
+}
+async function approve(id, g) {
+  try {
+    await db("POST", "garages", g);
+    await db("DELETE", "pending/" + id);
+    toast("Garage approuvé ✔︎"); await refresh();
+  } catch { toast("Échec de l'approbation"); }
+}
+async function deleteGarage(id) {
+  if (!confirm("Supprimer définitivement ce garage à vélo ?")) return;
+  try {
+    await db("DELETE", "garages/" + id);
+    await Promise.allSettled([db("DELETE", "reports/" + id), db("DELETE", "confirmations/" + id)]);
+    map.closePopup(); toast("Supprimé"); await refresh();
+  } catch { toast("Échec de la suppression"); }
+}
+
+/* ---------- Divers ---------- */
+let toastT;
+function toast(msg) {
+  const t = $("toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("show"), 2800);
+}
+
+(async function init() {
+  buildTypes(); setBanner(); startGeo();
+  if (shared) {
+    try { session = JSON.parse(localStorage.getItem(LS_AUTH) || "null"); } catch {}
+    if (session) { await getToken(); await checkAdmin(); }
+    updateAccountUI();
+  }
+  refresh();
+  setInterval(() => { if (!document.hidden) refresh(); }, REFRESH_MS);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
+})();
+</script>
+</body>
+</html>
