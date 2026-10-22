@@ -197,13 +197,22 @@ const AUTH_ERR = {
   WEAK_PASSWORD: "Mot de passe trop faible (6 caractères minimum).", MISSING_PASSWORD: "Saisissez un mot de passe.",
   INVALID_LOGIN_CREDENTIALS: "E-mail ou mot de passe incorrect.", EMAIL_NOT_FOUND: "Aucun compte avec cet e-mail.",
   INVALID_PASSWORD: "E-mail ou mot de passe incorrect.", USER_DISABLED: "Compte désactivé.",
-  TOO_MANY_ATTEMPTS_TRY_LATER: "Trop de tentatives, réessayez plus tard.", OPERATION_NOT_ALLOWED: "Connexion par e-mail non activée dans Firebase."
+  TOO_MANY_ATTEMPTS_TRY_LATER: "Trop de tentatives, réessayez plus tard.", OPERATION_NOT_ALLOWED: "Connexion par e-mail non activée dans Firebase.",
+  CONFIGURATION_NOT_FOUND: "Authentication n'est pas initialisé : dans Firebase, ouvrez Authentication et cliquez sur « Commencer ».",
+  API_KEY_INVALID: "Clé API invalide.", API_KEY_HTTP_REFERRER_BLOCKED: "Clé API restreinte : ce domaine n'est pas autorisé."
 };
 async function authCall(endpoint, body) {
-  const r = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:${endpoint}?key=${FIREBASE_API_KEY}`, {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-  const j = await r.json();
-  if (!r.ok) { const code = (j.error && j.error.message || "").split(" ")[0]; throw new Error(AUTH_ERR[code] || "Erreur d'authentification"); }
+  let r;
+  try {
+    r = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:${endpoint}?key=${FIREBASE_API_KEY}`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  } catch { throw new Error("Connexion impossible (réseau ou accès bloqué)."); }
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    const raw = (j.error && j.error.message) || "";
+    const code = raw.split(" ")[0];
+    throw new Error(AUTH_ERR[code] || `Erreur Firebase : ${raw || r.status}`);
+  }
   return j;
 }
 function setSession(j) {
